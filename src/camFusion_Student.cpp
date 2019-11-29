@@ -154,5 +154,22 @@ void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
 
 void matchBoundingBoxes(std::vector<cv::DMatch> &matches, std::map<int, int> &bbBestMatches, DataFrame &prevFrame, DataFrame &currFrame)
 {
-    // ...
+    for (auto it1 = currFrame.boundingBoxes.begin(); it1!=currFrame.boundingBoxes.end(); ++it1){
+        int bestMatches = 0;
+        for (auto it3 = prevFrame.boundingBoxes.begin(); it3!=prevFrame.boundingBoxes.end(); ++it3){
+            int numMatches = 0;
+            for (auto it2 = matches.begin(); it2 != matches.end(); ++it2){
+                cv::DMatch match = *it2;
+                cv::KeyPoint pt1 = currFrame.keypoints[match.trainIdx];
+                cv::KeyPoint pt2 = prevFrame.keypoints[match.queryIdx];
+                if (it1->roi.contains(pt1.pt) && it3->roi.contains(pt2.pt)){
+                    numMatches += 1;
+                    if (numMatches > bestMatches){
+                        bbBestMatches[it1->boxID] = it3->boxID;
+                        bestMatches = numMatches;
+                    }
+                }
+            }
+        }
+    }
 }

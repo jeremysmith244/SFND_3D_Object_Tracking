@@ -37,4 +37,18 @@ struct DataFrame { // represents the available sensor information at the same ti
     std::map<int,int> bbMatches; // bounding box matches between previous and current frame
 };
 
+class Buffer{
+    public:
+        Buffer(unsigned size);
+        void write(DataFrame input);
+        DataFrame read();
+        unsigned getSize();
+    private:
+        unsigned numEntries;
+        std::vector<DataFrame> buffer;
+        unsigned readIndex;
+        unsigned writeIndex;
+        
+};
+
 #endif /* dataStructures_h */
