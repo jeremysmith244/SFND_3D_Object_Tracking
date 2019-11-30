@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <opencv2/core.hpp>
+using namespace std;
 
 struct LidarPoint { // single lidar point in space
     double x,y,z,r; // x,y,z in [m], r is point reflectivity
@@ -27,6 +28,7 @@ struct BoundingBox { // bounding box around a classified object (contains both 2
 struct DataFrame { // represents the available sensor information at the same time instance
     
     cv::Mat cameraImg; // camera image
+    string imgName;
     
     std::vector<cv::KeyPoint> keypoints; // 2D keypoints within camera image
     cv::Mat descriptors; // keypoint descriptors
@@ -43,11 +45,14 @@ class Buffer{
         void write(DataFrame input);
         DataFrame read();
         unsigned getSize();
+        void setBB(map<int, int>);
+        void setMatches(vector<cv::DMatch>);
     private:
         unsigned numEntries;
         std::vector<DataFrame> buffer;
         unsigned readIndex;
         unsigned writeIndex;
+        unsigned modifyIndex;
         
 };
 

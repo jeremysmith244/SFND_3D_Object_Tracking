@@ -24,36 +24,45 @@ using namespace std;
 
 Buffer::Buffer(unsigned size) : buffer(size){
     readIndex = 0;
-    writeIndex = size - 1;
+    writeIndex = 0;
     numEntries = 0;
+    modifyIndex = 0;
 }
 
 void Buffer::write(DataFrame input){
-    buffer[writeIndex++] = input;
-    numEntries += 1;
-    if(writeIndex >= buffer.size()){
-        writeIndex = 0;
+    if (writeIndex >= buffer.size()){
+        for (int i = 1; i < buffer.size(); i++){
+            buffer[i-1] = buffer[i];
+        }
+        buffer[buffer.size()-1] = input;
+        modifyIndex = buffer.size() - 1;
+    } else {
+        buffer[writeIndex] = input;
+        modifyIndex = writeIndex;
+        writeIndex += 1;
+        numEntries += 1;
     }
 }
 
 DataFrame Buffer::read(){
     DataFrame val = buffer[readIndex++];
-    if(readIndex <= buffer.size()){
+    if(readIndex >= buffer.size()){
         readIndex = 0;
     }
     return val;
 }
 
 unsigned Buffer::getSize(){
-    unsigned bufferSize;
+    return numEntries;
+}
 
-    if (numEntries > 1){
-        bufferSize = 2;
-    }
-    else{
-        bufferSize = numEntries;
-    }
-    return bufferSize;
+void Buffer::setBB(map<int, int> input){
+
+    buffer[modifyIndex].bbMatches = input;
+}
+
+void Buffer::setMatches(vector<cv::DMatch> input){
+    buffer[modifyIndex].kptMatches = input;
 }
 
 /* MAIN PROGRAM */
@@ -125,8 +134,9 @@ int main(int argc, const char *argv[])
         // push image into data frame buffer
         DataFrame frame;
         frame.cameraImg = img;
+        frame.imgName = imgFullFilename;
 
-        cout << "#1 : LOAD IMAGE INTO BUFFER done" << endl;
+        cout << "#1 : LOAD IMAGE INTO BUFFER done: " << endl;
 
 
         /* DETECT & CLASSIFY OBJECTS */
@@ -244,12 +254,12 @@ int main(int argc, const char *argv[])
             DataFrame frame1 = dataBuffer.read();
             DataFrame frame2 = dataBuffer.read();
 
-            matchDescriptors(frame1.keypoints, frame1.keypoints,
-                             frame2.descriptors, frame2.descriptors,
+            matchDescriptors(frame1.keypoints, frame2.keypoints,
+                             frame1.descriptors, frame2.descriptors,
                              matches, descriptorType, matcherType, selectorType);
 
             // store matches in current data frame
-            frame1.kptMatches = matches;
+            dataBuffer.setMatches(matches);
 
             cout << "#7 : MATCH KEYPOINT DESCRIPTORS done" << endl;
 
@@ -263,14 +273,14 @@ int main(int argc, const char *argv[])
             //// EOF STUDENT ASSIGNMENT
 
             // store matches in current data frame
-            frame2.bbMatches = bbBestMatches;
+            dataBuffer.setBB(bbBestMatches);
 
             cout << "#8 : TRACK 3D OBJECT BOUNDING BOXES done" << endl;
 
             /* COMPUTE TTC ON OBJECT IN FRONT */
 
             // loop over all BB match pairs
-            for (auto it1 = frame2.bbMatches.begin(); it1 != frame2.bbMatches.end(); ++it1)
+            for (auto it1 = bbBestMatches.begin(); it1 != bbBestMatches.end(); ++it1)
             {
                 // find bounding boxes associates with current match
                 BoundingBox *prevBB, *currBB;
@@ -296,14 +306,14 @@ int main(int argc, const char *argv[])
                     //// STUDENT ASSIGNMENT
                     //// TASK FP.2 -> compute time-to-collision based on Lidar data (implement -> computeTTCLidar)
                     double ttcLidar; 
-                    // computeTTCLidar(prevBB->lidarPoints, currBB->lidarPoints, sensorFrameRate, ttcLidar);
+                    computeTTCLidar(prevBB->lidarPoints, currBB->lidarPoints, sensorFrameRate, ttcLidar);
                     //// EOF STUDENT ASSIGNMENT
 
                     //// STUDENT ASSIGNMENT
                     //// TASK FP.3 -> assign enclosed keypoint matches to bounding box (implement -> clusterKptMatchesWithROI)
                     //// TASK FP.4 -> compute time-to-collision based on camera (implement -> computeTTCCamera)
                     double ttcCamera;
-                    clusterKptMatchesWithROI(*currBB, frame1.keypoints, frame2.keypoints, frame2.kptMatches);                    
+                    // clusterKptMatchesWithROI(*currBB, frame1.keypoints, frame2.keypoints, frame2.kptMatches);                    
                     // computeTTCCamera(frame1.keypoints, frame2.keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera);
                     //// EOF STUDENT ASSIGNMENT
 

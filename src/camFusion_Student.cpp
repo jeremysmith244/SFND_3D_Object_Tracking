@@ -144,11 +144,59 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
     // ...
 }
 
-
 void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
                      std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC)
 {
-    // ...
+
+    // find closest distance to Lidar points within ego lane
+    double sumXPrev, sumXCurr, meanXCurr, meanXPrev, varXCurr, varXPrev, stdXPrev, stdXCurr;
+    double minXPrev = 1e9, minXCurr = 1e9;
+    std::vector<double> xDistPrev, xDistCurr;
+
+    for (auto it = lidarPointsPrev.begin(); it != lidarPointsPrev.end(); ++it)
+    {
+        xDistPrev.push_back(it->x);
+        sumXPrev += it->x;
+    }
+
+    for (auto it = lidarPointsCurr.begin(); it != lidarPointsCurr.end(); ++it)
+    {
+        xDistCurr.push_back(it->x);
+        sumXCurr += it->x;
+    }
+
+    meanXPrev = sumXPrev/xDistPrev.size();
+    meanXCurr = sumXCurr/xDistCurr.size();
+
+    for (auto it = xDistPrev.begin(); it != xDistPrev.end(); ++it){
+        double val = *it;
+        varXPrev += (val - meanXPrev) * (val - meanXPrev);
+    }
+
+    for (auto it = xDistCurr.begin(); it != xDistCurr.end(); ++it){
+        double val = *it;
+        varXCurr += (val - meanXCurr) * (val - meanXCurr);
+    }
+
+    stdXPrev = sqrt(varXPrev);
+    stdXCurr = sqrt(varXCurr);
+
+    for (auto it = xDistPrev.begin(); it != xDistPrev.end(); ++it){
+        double val = *it;
+        if ( (val > (meanXPrev - 3*stdXPrev)) && (val < minXPrev) ){
+            minXPrev = val;
+        }
+    }
+
+    for (auto it = xDistCurr.begin(); it != xDistCurr.end(); ++it){
+        double val = *it;
+        if ( (val > (meanXCurr - 3*stdXCurr)) && (val < minXCurr) ){
+            minXCurr = val;
+        }
+    }
+
+    // compute TTC from both measurements
+    TTC = minXCurr * (1/frameRate) / (minXPrev - minXCurr);
 }
 
 
