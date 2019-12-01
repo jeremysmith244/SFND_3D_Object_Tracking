@@ -53,13 +53,14 @@ void loadLidarFromFile(vector<LidarPoint> &lidarPoints, string filename)
 }
 
 
-void showLidarTopview(std::vector<LidarPoint> &lidarPoints, cv::Size worldSize, cv::Size imageSize, bool bWait)
+void showLidarTopview(std::vector<LidarPoint> &lidarPoints1, std::vector<LidarPoint> &lidarPoints2, 
+                      cv::Size worldSize, cv::Size imageSize, bool bWait)
 {
     // create topview image
     cv::Mat topviewImg(imageSize, CV_8UC3, cv::Scalar(0, 0, 0));
 
     // plot Lidar points into image
-    for (auto it = lidarPoints.begin(); it != lidarPoints.end(); ++it)
+    for (auto it = lidarPoints1.begin(); it != lidarPoints1.end(); ++it)
     {
         float xw = (*it).x; // world position in m with x facing forward from sensor
         float yw = (*it).y; // world position in m with y facing left from sensor
@@ -67,11 +68,22 @@ void showLidarTopview(std::vector<LidarPoint> &lidarPoints, cv::Size worldSize, 
         int y = (-xw * imageSize.height / worldSize.height) + imageSize.height;
         int x = (-yw * imageSize.height / worldSize.height) + imageSize.width / 2;
 
-        cv::circle(topviewImg, cv::Point(x, y), 5, cv::Scalar(0, 0, 255), -1);
+        cv::circle(topviewImg, cv::Point(x, y), 5, cv::Scalar(0,255,0), -1);
+    }
+
+    for (auto it = lidarPoints2.begin(); it != lidarPoints2.end(); ++it)
+    {
+        float xw = (*it).x; // world position in m with x facing forward from sensor
+        float yw = (*it).y; // world position in m with y facing left from sensor
+
+        int y = (-xw * imageSize.height / worldSize.height) + imageSize.height;
+        int x = (-yw * imageSize.height / worldSize.height) + imageSize.width / 2;
+
+        cv::circle(topviewImg, cv::Point(x, y), 5, cv::Scalar(0,0,255), -1);
     }
 
     // plot distance markers
-    float lineSpacing = 2.0; // gap between distance markers
+    float lineSpacing = 0.1; // gap between distance markers
     int nMarkers = floor(worldSize.height / lineSpacing);
     for (size_t i = 0; i < nMarkers; ++i)
     {

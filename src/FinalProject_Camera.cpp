@@ -163,20 +163,12 @@ int main(int argc, const char *argv[])
         string lidarFullFilename = imgBasePath + lidarPrefix + imgNumber.str() + lidarFileType;
         std::vector<LidarPoint> lidarPoints;
         loadLidarFromFile(lidarPoints, lidarFullFilename);
-
+ 
         // remove Lidar points based on distance properties
         float minZ = -1.5, maxZ = -0.9, minX = 2.0, maxX = 20.0, maxY = 2.0, minR = 0.1; // focus on ego lane
         cropLidarPoints(lidarPoints, minX, maxX, maxY, minZ, maxZ, minR);
     
         frame.lidarPoints = lidarPoints;
-
-        bVis = true;
-        if (bVis){
-            cv::Size worldSize(10.0, 20.0); // width and height of sensor field in m
-            cv::Size imageSize(1000, 2000); // corresponding top view image in pixel
-            showLidarTopview(lidarPoints, worldSize, imageSize);
-        }
-        bVis = false;
 
         cout << "#3 : CROP LIDAR POINTS done" << endl;
 
@@ -270,6 +262,14 @@ int main(int argc, const char *argv[])
             DataFrame frame1 = dataBuffer.read();
             DataFrame frame2 = dataBuffer.read();
 
+            bVis = false;
+            if (bVis){
+                cv::Size worldSize(10.0, 20.0); // width and height of sensor field in m
+                cv::Size imageSize(1000, 2000); // corresponding top view image in pixel
+                showLidarTopview(frame1.lidarPoints, frame2.lidarPoints, worldSize, imageSize);
+            }
+            bVis = false;
+
             if (bVerbose){
                 cout << "Matching images: " << frame1.imgName << " to " << frame2.imgName << endl;
             }
@@ -358,7 +358,7 @@ int main(int argc, const char *argv[])
                     bVerbose = false;
                     //// EOF STUDENT ASSIGNMENT
 
-                    bVis = true;
+                    bVis = false;
                     if (bVis)
                     {
                         cv::Mat visImg = frame2.cameraImg.clone();
