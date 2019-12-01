@@ -68,6 +68,11 @@ void Buffer::setMatches(vector<cv::DMatch> input){
 /* MAIN PROGRAM */
 int main(int argc, const char *argv[])
 {
+    // Load output file for saving
+    ofstream myfile;
+    myfile.open ("output.txt");
+    myfile << argv[1] << " " << argv[2] << std::endl;
+
     /* INIT VARIABLES AND DATA STRUCTURES */
 
     // data location
@@ -196,7 +201,7 @@ int main(int argc, const char *argv[])
 
         // extract 2D keypoints from current image
         vector<cv::KeyPoint> keypoints; // create empty feature list for current image
-        string detectorType = "FAST";
+        string detectorType = argv[1];
 
         if (detectorType.compare("SHITOMASI") == 0)
         {
@@ -215,7 +220,7 @@ int main(int argc, const char *argv[])
         bool bLimitKpts = false;
         if (bLimitKpts)
         {
-            int maxKeypoints = 50;
+            int maxKeypoints = 1000;
 
             if (detectorType.compare("SHITOMASI") == 0)
             { // there is no response info, so keep the first 50 as they are sorted in descending quality order
@@ -234,7 +239,7 @@ int main(int argc, const char *argv[])
         /* EXTRACT KEYPOINT DESCRIPTORS */
 
         cv::Mat descriptors;
-        string descriptorType = "FREAK"; // BRISK, BRIEF, ORB, FREAK, AKAZE, SIFT
+        string descriptorType = argv[2]; // BRISK, BRIEF, ORB, FREAK, AKAZE, SIFT
         descKeypoints(frame.keypoints, frame.cameraImg, descriptors, descriptorType);
 
         // push descriptors for current frame to end of data buffer
@@ -320,6 +325,7 @@ int main(int argc, const char *argv[])
                 // compute TTC for current match
                 if( currBB->lidarPoints.size()>0 && prevBB->lidarPoints.size()>0 ) // only compute TTC if we have Lidar points
                 {
+                    myfile << frame1.imgName << " vs " << frame2.imgName << endl;
                     //// STUDENT ASSIGNMENT
                     //// TASK FP.2 -> compute time-to-collision based on Lidar data (implement -> computeTTCLidar)
                     double ttcLidar; 
@@ -327,6 +333,7 @@ int main(int argc, const char *argv[])
                     computeTTCLidar(prevBB->lidarPoints, currBB->lidarPoints, sensorFrameRate, ttcLidar, bVerbose);
                     bVerbose = false;
                     //// EOF STUDENT ASSIGNMENT
+                    myfile << "TTC Lidar: " << ttcLidar << endl;
 
                     //// STUDENT ASSIGNMENT
                     //// TASK FP.3 -> assign enclosed keypoint matches to bounding box (implement -> clusterKptMatchesWithROI)
@@ -339,10 +346,11 @@ int main(int argc, const char *argv[])
                     }
 
                     computeTTCCamera(frame1.keypoints, frame2.keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera, bVerbose);
+                    myfile << "TTC Camera: " << ttcCamera << endl;
                     bVerbose = false;
                     //// EOF STUDENT ASSIGNMENT
 
-                    bVis = true;
+                    bVis = false;
                     if (bVis)
                     {
                         cv::Mat visImg = frame2.cameraImg.clone();
@@ -367,6 +375,6 @@ int main(int argc, const char *argv[])
         }
 
     } // eof loop over all images
-
+    myfile.close();
     return 0;
 }

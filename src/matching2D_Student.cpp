@@ -164,8 +164,8 @@ void detKeypointsShiTomasi(vector<cv::KeyPoint> &keypoints, cv::Mat &img, bool b
 void detKeypointsHarris(vector<cv::KeyPoint> &keypoints, cv::Mat &img, bool bVis)
 {
     // Detector parameters
-    int blockSize = 2;     // for every pixel, a blockSize × blockSize neighborhood is considered
-    int apertureSize = 3;  // aperture parameter for Sobel operator (must be odd)
+    int blockSize = 6;     // for every pixel, a blockSize × blockSize neighborhood is considered
+    int apertureSize = 9;  // aperture parameter for Sobel operator (must be odd)
     int minResponse = 65; // minimum value for a corner in the 8bit scaled response matrix
     double k = 0.03;       // Harris parameter (see equation for details)
     double t = (double)cv::getTickCount();
