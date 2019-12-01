@@ -12,7 +12,8 @@ using namespace std;
 
 
 // Create groups of Lidar points whose projection into the camera falls into the same bounding box
-void clusterLidarWithROI(std::vector<BoundingBox> &boundingBoxes, std::vector<LidarPoint> &lidarPoints, float shrinkFactor, cv::Mat &P_rect_xx, cv::Mat &R_rect_xx, cv::Mat &RT)
+void clusterLidarWithROI(std::vector<BoundingBox> &boundingBoxes, std::vector<LidarPoint> &lidarPoints, float shrinkFactor, 
+                         cv::Mat &P_rect_xx, cv::Mat &R_rect_xx, cv::Mat &RT)
 {
     // loop over all Lidar points and associate them to a 2D bounding box
     cv::Mat X(4, 1, cv::DataType<double>::type);
@@ -131,21 +132,95 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
 
 
 // associate a given bounding box with the keypoints it contains
-void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, std::vector<cv::DMatch> &kptMatches)
+void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint> kptsPrev, std::vector<cv::KeyPoint> kptsCurr, 
+                              std::vector<cv::DMatch> kptMatches)
 {
-    // ...
+    cv::KeyPoint pt1;
+    cv::KeyPoint pt2;
+
+    for (auto it = kptMatches.begin(); it!= kptMatches.end(); ++it){
+
+        cv::DMatch match = *it;
+        pt1 = kptsCurr[match.trainIdx];
+        pt2 = kptsPrev[match.queryIdx];
+
+        if (boundingBox.roi.contains(pt1.pt) && boundingBox.roi.contains(pt2.pt)){
+
+            boundingBox.kptMatches.push_back(match);
+
+        }
+    }
 }
 
-
 // Compute time-to-collision (TTC) based on keypoint correspondences in successive images
-void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, 
-                      std::vector<cv::DMatch> kptMatches, double frameRate, double &TTC, cv::Mat *visImg)
+void computeTTCCamera(std::vector<cv::KeyPoint> kptsPrev, std::vector<cv::KeyPoint> kptsCurr, 
+                      std::vector<cv::DMatch> kptMatches, double frameRate, double &TTC, bool bVerbose, cv::Mat *visImg)
 {
-    // ...
+    // compute distance ratios between all matched keypoints
+    vector<double> distRatios, cleanDistRatios; // stores the distance ratios for all keypoints between curr. and prev. frame
+    for (auto it1 = kptMatches.begin(); it1 != kptMatches.end() - 1; ++it1)
+    { // outer kpt. loop
+
+        // get current keypoint and its matched partner in the prev. frame
+        cv::KeyPoint kpOuterCurr = kptsCurr.at(it1->trainIdx);
+        cv::KeyPoint kpOuterPrev = kptsPrev.at(it1->queryIdx);
+
+        for (auto it2 = kptMatches.begin() + 1; it2 != kptMatches.end(); ++it2)
+        { // inner kpt.-loop
+
+            double minDist = 100.0; // min. required distance
+
+            // get next keypoint and its matched partner in the prev. frame
+            cv::KeyPoint kpInnerCurr = kptsCurr.at(it2->trainIdx);
+            cv::KeyPoint kpInnerPrev = kptsPrev.at(it2->queryIdx);
+
+            // compute distances and distance ratios
+            double distCurr = cv::norm(kpOuterCurr.pt - kpInnerCurr.pt);
+            double distPrev = cv::norm(kpOuterPrev.pt - kpInnerPrev.pt);
+
+            if (distPrev > std::numeric_limits<double>::epsilon() && distCurr >= minDist)
+            { // avoid division by zero
+
+                double distRatio = distCurr / distPrev;
+                distRatios.push_back(distRatio);
+                if (bVerbose){
+                    cout << "Found distance ratio of " << distRatio << endl;
+                }
+            }
+        } // eof inner loop over all matched kpts
+    }     // eof outer loop over all matched kpts
+
+    // only continue if list of distance ratios is not empty
+    if (distRatios.size() == 0)
+    {
+        TTC = NAN;
+        return;
+    }
+
+    // compute camera-based TTC from distance ratios
+    double meanDistRatio = std::accumulate(distRatios.begin(), distRatios.end(), 0.0) / distRatios.size();
+    double varDist, stdDist;
+
+    for (auto it = distRatios.begin(); it != distRatios.end(); ++it){
+        double val = *it;
+        varDist += (val - meanDistRatio) * (val - meanDistRatio);
+    }
+    stdDist = sqrt(varDist);
+    for (auto it = distRatios.begin(); it != distRatios.end(); ++it){
+        double val = *it;
+        if (abs(val - meanDistRatio) < 3*stdDist){
+            cleanDistRatios.push_back(val);
+        }
+    }
+
+    double cleanMean = std::accumulate(cleanDistRatios.begin(), cleanDistRatios.end(), 0.0) / cleanDistRatios.size();
+    double dT = 1 / frameRate;
+    TTC = -dT / (1 - cleanMean);
+
 }
 
 void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
-                     std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC)
+                     std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC, bool bVerbose)
 {
 
     // find closest distance to Lidar points within ego lane
@@ -155,14 +230,18 @@ void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
 
     for (auto it = lidarPointsPrev.begin(); it != lidarPointsPrev.end(); ++it)
     {
-        xDistPrev.push_back(it->x);
-        sumXPrev += it->x;
+        if (it->r > 0.05){
+            xDistPrev.push_back(it->x);
+            sumXPrev += it->x;
+        }
     }
 
     for (auto it = lidarPointsCurr.begin(); it != lidarPointsCurr.end(); ++it)
     {
-        xDistCurr.push_back(it->x);
-        sumXCurr += it->x;
+        if (it->r > 0.05){
+            xDistCurr.push_back(it->x);
+            sumXCurr += it->x;
+        }
     }
 
     meanXPrev = sumXPrev/xDistPrev.size();
@@ -196,11 +275,18 @@ void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
     }
 
     // compute TTC from both measurements
-    TTC = minXCurr * (1/frameRate) / (minXPrev - minXCurr);
+    TTC = minXCurr * (1/frameRate) / abs(minXPrev - minXCurr);
+
+    if (bVerbose){
+        cout << "Current min X " << minXCurr << " previous " << minXPrev << endl;
+        cout << "Current mean X " << meanXCurr << " previous " << meanXPrev << endl;
+        cout << "Current std X " << stdXCurr << " previous " << stdXPrev << endl;
+        cout << "TTC is found as " << TTC << endl;
+    }
 }
 
 
-void matchBoundingBoxes(std::vector<cv::DMatch> &matches, std::map<int, int> &bbBestMatches, DataFrame &prevFrame, DataFrame &currFrame)
+void matchBoundingBoxes(std::vector<cv::DMatch> matches, std::map<int, int> &bbBestMatches, DataFrame prevFrame, DataFrame currFrame)
 {
     for (auto it1 = currFrame.boundingBoxes.begin(); it1!=currFrame.boundingBoxes.end(); ++it1){
         int bestMatches = 0;
@@ -212,7 +298,7 @@ void matchBoundingBoxes(std::vector<cv::DMatch> &matches, std::map<int, int> &bb
                 cv::KeyPoint pt2 = prevFrame.keypoints[match.queryIdx];
                 if (it1->roi.contains(pt1.pt) && it3->roi.contains(pt2.pt)){
                     numMatches += 1;
-                    if (numMatches > bestMatches){
+                    if ( (numMatches > bestMatches) && numMatches > 5){
                         bbBestMatches[it1->boxID] = it3->boxID;
                         bestMatches = numMatches;
                     }

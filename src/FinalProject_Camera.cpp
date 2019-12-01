@@ -116,6 +116,7 @@ int main(int argc, const char *argv[])
     int dataBufferSize = 2;       // no. of images which are held in memory (ring buffer) at the same time
     Buffer dataBuffer = Buffer(dataBufferSize); // list of data frames which are held in memory at the same time
     bool bVis = false;            // visualize results
+    bool bVerbose = false; // print debugging
 
     /* MAIN LOOP OVER ALL IMAGES */
 
@@ -141,11 +142,13 @@ int main(int argc, const char *argv[])
 
         /* DETECT & CLASSIFY OBJECTS */
 
+        bVis = false;
         float confThreshold = 0.2;
         float nmsThreshold = 0.4;        
         detectObjects(frame.cameraImg, frame.boundingBoxes, confThreshold, nmsThreshold,
                       yoloBasePath, yoloClassesFile, yoloModelConfiguration, yoloModelWeights, bVis);
 
+        bVis = false;
         cout << "#2 : DETECT & CLASSIFY OBJECTS done" << endl;
 
 
@@ -254,9 +257,14 @@ int main(int argc, const char *argv[])
             DataFrame frame1 = dataBuffer.read();
             DataFrame frame2 = dataBuffer.read();
 
+            if (bVerbose){
+                cout << "Matching images: " << frame1.imgName << " to " << frame2.imgName << endl;
+            }
+
             matchDescriptors(frame1.keypoints, frame2.keypoints,
                              frame1.descriptors, frame2.descriptors,
                              matches, descriptorType, matcherType, selectorType);
+
 
             // store matches in current data frame
             dataBuffer.setMatches(matches);
@@ -272,6 +280,12 @@ int main(int argc, const char *argv[])
             matchBoundingBoxes(matches, bbBestMatches, frame1, frame2); // associate bounding boxes between current and previous frame using keypoint matches
             //// EOF STUDENT ASSIGNMENT
 
+            if (bVerbose){
+                for (auto it = bbBestMatches.begin(); it != bbBestMatches.end(); ++it){
+                    cout << "Found matching BB: " << it->first << " to " << it->second << endl;
+                }
+            }
+
             // store matches in current data frame
             dataBuffer.setBB(bbBestMatches);
 
@@ -286,7 +300,7 @@ int main(int argc, const char *argv[])
                 BoundingBox *prevBB, *currBB;
                 for (auto it2 = frame2.boundingBoxes.begin(); it2 != frame2.boundingBoxes.end(); ++it2)
                 {
-                    if (it1->second == it2->boxID) // check wether current match partner corresponds to this BB
+                    if (it1->first == it2->boxID) // check wether current match partner corresponds to this BB
                     {
                         currBB = &(*it2);
                     }
@@ -294,27 +308,38 @@ int main(int argc, const char *argv[])
 
                 for (auto it2 = frame1.boundingBoxes.begin(); it2 != frame1.boundingBoxes.end(); ++it2)
                 {
-                    if (it1->first == it2->boxID) // check wether current match partner corresponds to this BB
+                    if (it1->second == it2->boxID) // check wether current match partner corresponds to this BB
                     {
                         prevBB = &(*it2);
                     }
                 }
 
+                if (bVerbose){
+                    cout << "Current BB # lidar points " << currBB->lidarPoints.size() << " and previous is " << prevBB->lidarPoints.size() << endl;
+                }
                 // compute TTC for current match
                 if( currBB->lidarPoints.size()>0 && prevBB->lidarPoints.size()>0 ) // only compute TTC if we have Lidar points
                 {
                     //// STUDENT ASSIGNMENT
                     //// TASK FP.2 -> compute time-to-collision based on Lidar data (implement -> computeTTCLidar)
                     double ttcLidar; 
-                    computeTTCLidar(prevBB->lidarPoints, currBB->lidarPoints, sensorFrameRate, ttcLidar);
+                    bVerbose = false;
+                    computeTTCLidar(prevBB->lidarPoints, currBB->lidarPoints, sensorFrameRate, ttcLidar, bVerbose);
+                    bVerbose = false;
                     //// EOF STUDENT ASSIGNMENT
 
                     //// STUDENT ASSIGNMENT
                     //// TASK FP.3 -> assign enclosed keypoint matches to bounding box (implement -> clusterKptMatchesWithROI)
                     //// TASK FP.4 -> compute time-to-collision based on camera (implement -> computeTTCCamera)
                     double ttcCamera;
-                    // clusterKptMatchesWithROI(*currBB, frame1.keypoints, frame2.keypoints, frame2.kptMatches);                    
-                    // computeTTCCamera(frame1.keypoints, frame2.keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera);
+                    bVerbose = false;
+                    clusterKptMatchesWithROI(*currBB, frame1.keypoints, frame2.keypoints, matches);  
+                    if (bVerbose){
+                        cout << "Found " << currBB->kptMatches.size() << " matches in BB" << endl;
+                    }
+
+                    computeTTCCamera(frame1.keypoints, frame2.keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera, bVerbose);
+                    bVerbose = false;
                     //// EOF STUDENT ASSIGNMENT
 
                     bVis = true;
