@@ -350,11 +350,15 @@ int main(int argc, const char *argv[])
                     bVerbose = false;
                     //// EOF STUDENT ASSIGNMENT
 
-                    bVis = false;
+                    bVis = true;
                     if (bVis)
                     {
                         cv::Mat visImg = frame2.cameraImg.clone();
                         showLidarImgOverlay(visImg, currBB->lidarPoints, P_rect_00, R_rect_00, RT, &visImg);
+                        cv::Size worldSize(10.0, 20.0); // width and height of sensor field in m
+                        cv::Size imageSize(1000, 2000); // corresponding top view image in pixel
+
+                        showLidarTopview(currBB->lidarPoints, worldSize, imageSize);
                         cv::rectangle(visImg, cv::Point(currBB->roi.x, currBB->roi.y), cv::Point(currBB->roi.x + currBB->roi.width, currBB->roi.y + currBB->roi.height), cv::Scalar(0, 255, 0), 2);
                         
                         char str[200];
